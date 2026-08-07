@@ -1,11 +1,11 @@
 ---
 name: resume-builder
-description: 专业技术简历生成器，输出固定海军蓝咨询风的 PDF/DOCX/HTML 三格式简历（A4 2 页）。支持用户说"帮我写简历"、"生成简历"、"更新简历"、"导出简历 PDF/DOCX"、"把这份简历做成好看的 PDF"、"排版我的简历"、"重新生成简历"、"按这个风格生成简历"等场景时使用，即使用户没有明确要求某种格式。工作流：(1) 通过引导式对话收集候选人信息并填充到标准 JSON 数据文件；(2) 调用 scripts/generate_resume.py 一次产出 HTML/DOCX/PDF；(3) 用户可迭代修改 JSON 内容并重跑脚本。当用户需要一份排版专业、可直接投递的中文 tech resume 时都应触发本技能，尤其是互联网/大厂技术岗跳槽、晋升材料、求职简历制作场景。
+description: 专业技术简历生成器，输出固定海军蓝咨询风的 PDF、DOCX 或 HTML 简历（内容驱动的 1-2 页 A4）。支持用户说"帮我写简历"、"生成简历"、"更新简历"、"导出简历 PDF/DOCX"、"把这份简历做成好看的 PDF"、"排版我的简历"、"重新生成简历"、"按这个风格生成简历"等场景时使用，即使用户没有明确要求某种格式。工作流：(1) 通过引导式对话收集候选人信息并填充到标准 JSON 数据文件；(2) 调用 scripts/generate_resume.py 生成用户指定格式；(3) 渲染并检查 PDF 后交付；(4) 用户可迭代修改 JSON 内容并重跑脚本。当用户需要一份排版专业、可直接投递的中文 tech resume 时都应触发本技能，尤其是互联网/大厂技术岗跳槽、晋升材料、求职简历制作场景。
 ---
 
 # 简历制作 Skill (resume-builder)
 
-为中文技术岗位生成一份排版专业的简历，一次性输出 **HTML / DOCX / PDF** 三种格式。
+为中文技术岗位生成一份排版专业的简历，可按用户要求输出 **HTML / DOCX / PDF**。
 视觉风格为**海军蓝（navy）咨询风**——深蓝标题条、浅蓝副标题条、结构化 project banner、
 量化指标加粗——已锁定为固定模板，用户无需也不应调样式，专注内容即可。
 
@@ -14,7 +14,7 @@ description: 专业技术简历生成器，输出固定海军蓝咨询风的 PDF
 1. **不要自己写排版代码**。所有文件生成都必须通过 `scripts/generate_resume.py` 完成。
 2. **不要改样式**。颜色、字号、间距、banner 形态是固定的，改了就破坏了风格的一致性。
 3. **内容为王**。把精力花在帮用户挖掘经历亮点、提炼量化指标、把 STAR 转成 bullet 上。
-4. **目标 2 页 A4**。超过 2 页就删次要内容，而不是缩小字号。
+4. **页数由内容决定**。优先输出 1-2 页 A4；不要为了凑 2 页添加空白或重复内容。仅在内容确实超载时删次要信息，不要缩小字号。
 
 ---
 
@@ -25,7 +25,9 @@ description: 专业技术简历生成器，输出固定海军蓝咨询风的 PDF
 `--html-only` 不安装依赖，`--no-pdf` 只安装 `python-docx`，默认三格式输出会安装两者。
 
 如 PDF 生成报 Pango、Cairo、字体或 DLL 缺失，属于操作系统级依赖。Agent 应根据运行系统自动
-执行对应安装流程；若需要管理员授权，向用户请求授权，不要让用户自行查找安装命令。
+执行对应安装流程；若需要管理员授权，向用户请求授权，不要让用户自行查找安装命令。macOS 优先
+使用 Homebrew 安装 `pango`；Linux 安装 Pango/Cairo 系统包；Windows 原生环境配置 MSYS2 Pango，
+或优先使用 WSL。
 
 中文字体由系统提供（WeasyPrint 会自动 PingFang SC / 微软雅黑 / Noto Sans CJK SC 回退）。
 如 WeasyPrint 启动报错缺少系统库（常见于 Linux 最小化环境），参考
@@ -64,8 +66,8 @@ description: 专业技术简历生成器，输出固定海军蓝咨询风的 PDF
 
 ### Step 2：写入 JSON 数据文件
 
-按 `references/data-schema.md` 的结构把收集到的信息整理成 `resume.json`，
-放在**当前工作目录**（也就是用户 cwd，或者你选的一个输出目录）。
+按 `references/data-schema.md` 的结构把收集到的信息整理成 `resume.json`。含联系方式、证件照或
+旧简历内容时，写入临时目录，不要提交到仓库；用户只要求 PDF 时，交付后删除 JSON 和所有中间文件。
 
 写作要点（详见 `references/style-guide.md`）：
 
@@ -81,33 +83,33 @@ description: 专业技术简历生成器，输出固定海军蓝咨询风的 PDF
 可以参考 `examples/resume_data_example.json` 作为模板起点（其中人物、公司、项目和指标均为
 虚构数据；内容密度和加粗模式可直接对照）。
 
-### Step 3：生成三种格式
+### Step 3：生成指定格式
 
 ```bash
-# 基本用法——在 JSON 所在目录执行
-python3 <SKILL_DIR>/scripts/generate_resume.py --data resume.json --outdir ./
-# 带照片
-python3 <SKILL_DIR>/scripts/generate_resume.py --data resume.json --outdir ./ --photo photo.jpg
-# 只要 HTML/DOCX（本地无 WeasyPrint 时的 fallback）
-python3 <SKILL_DIR>/scripts/generate_resume.py --data resume.json --outdir ./ --no-pdf
+# 由 Agent 替换为实际安装路径；不要把尖括号原样传给 shell
+python3 "$SKILL_DIR/scripts/generate_resume.py" --data resume.json --outdir ./ --format pdf
+# 仅 DOCX 或 HTML
+python3 "$SKILL_DIR/scripts/generate_resume.py" --data resume.json --outdir ./ --format docx
+python3 "$SKILL_DIR/scripts/generate_resume.py" --data resume.json --outdir ./ --format html
 ```
 
-其中 `<SKILL_DIR>` 是本 Skill 所在目录。首次执行会自动完成所需 Python 依赖的安装；脚本会在
-`--outdir` 下生成：
+其中 `$SKILL_DIR` 是本 Skill 所在目录。首次执行会自动完成所需 Python 依赖的安装；`--format pdf`
+仅保留 PDF，内部 HTML 会自动清理。默认 `--format all` 才会同时生成三种格式。
 
 - `resume.html`（单文件 HTML，可浏览器打开打印为 PDF）
 - `resume.docx`（可编辑 Word 文档）
 - `resume.pdf`（WeasyPrint 渲染的最终投递版，**推荐使用**）
 
-### Step 4：交付与迭代
+### Step 4：视觉验收、交付与迭代
 
-1. 上传生成的 PDF（必要时同时上传 DOCX/HTML）给用户，用一句话说明生成了什么。
-2. 如果用户说"太长/超 2 页"——**删内容**，不要调字号。优先删：
+1. PDF 生成后，将每页渲染为图片并检查：页数是否符合内容密度、中文字体是否正常、文字是否截断/重叠、是否存在不自然的大面积留白。发现问题后修改 JSON 或 `page_break` 并重跑。
+2. 只在用户要求的格式通过验收后交付；用户只要 PDF 时，不交付 HTML/DOCX，并删除含隐私的 JSON 和中间文件。
+3. 如果用户说"太长/超 2 页"——**删内容**，不要调字号。优先删：
    - 第二家公司以后非核心项目的 bullet
    - 技术栈里最弱的一条
    - 证书里含金量最低的一条
-3. 如果用户说"某部分要加粗/要改掉/要新增"——直接改 JSON 对应字段，重跑脚本。
-4. 如果用户想要 DOCX 里手动微调——交付 DOCX，告知其样式已锁定，建议只改内容不改字号颜色。
+4. 如果用户说"某部分要加粗/要改掉/要新增"——直接改 JSON 对应字段，重跑脚本。
+5. 如果用户想要 DOCX 里手动微调——交付 DOCX，告知其样式已锁定，建议只改内容不改字号颜色。
 
 ---
 
@@ -162,13 +164,16 @@ sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libffi-de
 Python 包会由脚本自动安装；仅在系统库缺失时才需要执行上述系统包安装。Windows 原生环境需
 安装 Pango（推荐通过 MSYS2）并设置 DLL 路径；优先建议使用 WSL 走 Linux 流程。
 
+**macOS PDF 渲染报 Pango/GObject 缺失**：
+- 脚本会自动尝试 `brew install pango` 后重试；如 Homebrew 请求授权，Agent 应请求用户授权后继续。
+
 **PDF 里中文字体显示异常（方框/乱码）**：
 - 安装 Noto Sans CJK：`sudo apt-get install fonts-noto-cjk`（Linux）或确认系统有 PingFang SC/微软雅黑。
 - macOS 自带 PingFang SC；Windows 自带微软雅黑；大多数 Linux 服务器装 fonts-noto-cjk 即可。
 
-**PDF 变成 3 页**：
-- 不要改 CSS/字号！删内容。优先级：弱 bullet → 弱技能 → 弱证书 → 收紧公司 intro。
-- 检查是否有项目可以加 `"page_break": true` 让第一页更饱满地收在主项目末尾。
+**PDF 页数或留白不理想**：
+- 不要改 CSS/字号！先检查内容是否适合 1 页或 2 页；没有足够内容时保留 1 页，不要强制换页。
+- 内容超载时按弱 bullet → 弱技能 → 弱证书 → 收紧公司 intro 的顺序删减；仅在自然分页不佳时添加 `"page_break": true`。
 
 **DOCX 打开后布局和 PDF 不完全一致**：
 - Word 渲染引擎差异属正常现象，PDF 是最终投递版，DOCX 用于二次编辑。
@@ -187,7 +192,7 @@ Python 包会由脚本自动安装；仅在系统库缺失时才需要执行上�
 - ❌ 不要把简历写成段落散文——一律用 bullet + 数字。
 - ❌ 不要编造指标，没有数字就问用户，用户也没有就写"约"或干脆不写。
 - ❌ 不要生成英文简历——本模板专为中文技术简历优化。
-- ❌ 不要生成超过 2 页的 PDF。
+- ❌ 不要为了凑页数强行分页、添加空白或重复内容。
 - ❌ 不要用 emoji、网络用语、第一人称"我"。
 
 ---

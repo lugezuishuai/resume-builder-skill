@@ -1,7 +1,7 @@
 # resume-builder
 
 为中文技术岗求职者生成**专业排版简历**的 Agent Skill。海军蓝（navy）咨询风固定模板，
-一次产出 HTML / DOCX / PDF 三种格式，目标控制在 A4 2 页。
+可按需产出 HTML / DOCX / PDF，页数根据内容自然收束为 1-2 页 A4。
 
 ![style](assets/badges/style.svg)
 ![format](assets/badges/format.svg)
@@ -11,11 +11,10 @@
 
 - **固定视觉系统**：海军蓝 #1e40af 主色、深蓝 project banner、浅蓝子模块横幅、量化指标加粗，
   复刻咨询/大厂简历的专业观感——用户专注内容即可，不用操心排版。
-- **三格式一次产出**：同一份 JSON 数据同时渲染 HTML（单文件）、DOCX（可编辑 Word）、
-  PDF（WeasyPrint 渲染，投递首选）。
+- **按需输出格式**：可生成 HTML（单文件）、DOCX（可编辑 Word）或 PDF（WeasyPrint 渲染，投递首选）；PDF-only 不保留中间文件。
 - **结构化数据驱动**：一份 `resume.json` 描述姓名/概述/技术栈/工作经历/项目/教育/证书，
   所有文本支持 `**加粗**` Markdown 标记。
-- **精确分页控制**：可对任意项目设置 `"page_break": true` 强制换页，保证 2 页平衡。
+- **内容驱动分页**：默认自然分页；仅在视觉检查发现分页不佳时，可对项目设置 `"page_break": true`。
 - **证件照可选**：传 `--photo photo.jpg` 即可在右上角嵌入证件照。
 - **指标导向**：内建写作规范引导用户为每条 bullet 补量化数据（DAU、性能提升、提效小时、
   准确率 delta 等）。
@@ -41,8 +40,8 @@ npx skills add lugezuishuai/resume-builder-skill -g -y -a codex
 无需手动安装 `python-docx` 或 `weasyprint`。首次生成时，脚本会按输出格式检测依赖，缺失则
 自动在用户缓存目录创建隔离虚拟环境、安装依赖并继续生成，不会修改 Homebrew 或系统 Python。
 
-需要 Python 3.8+。使用 `--html-only` 时不安装依赖，`--no-pdf` 只安装 DOCX 依赖，默认会安装
-DOCX 与 PDF 所需的 Python 包。
+需要 Python 3.8+。使用 `--format html` 时不安装依赖，`--format docx` 或 `--format pdf` 仅安装
+对应依赖，默认 `--format all` 会安装 DOCX 与 PDF 所需的 Python 包。
 
 Linux 最小化环境如 WeasyPrint 报错，补装系统库：
 
@@ -51,7 +50,8 @@ Linux 最小化环境如 WeasyPrint 报错，补装系统库：
 sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b fonts-noto-cjk
 ```
 
-macOS / Windows 自带 CJK 字体，一般开箱即用。
+macOS 首次 PDF 渲染缺少 Pango/GObject 时，脚本会自动尝试通过 Homebrew 安装 `pango` 后重试；Linux
+需安装相应 Pango 系统包。Windows 原生环境需配置 MSYS2 Pango，建议改用 WSL 生成 PDF。
 
 ## 🚀 快速开始
 
@@ -62,12 +62,12 @@ macOS / Windows 自带 CJK 字体，一般开箱即用。
 ```
 
 Agent 会引导你补充信息（或直接从你粘贴的旧简历里提取），生成 `resume.json`，
-再调用脚本一次产出三个文件。若需手动运行，将 `<SKILL_DIR>` 替换为安装后的
-`resume-builder` 目录：
+再调用脚本生成用户指定格式。若需手动运行，设置 `SKILL_DIR` 为安装后的 `resume-builder` 目录：
 
 ```bash
-python3 <SKILL_DIR>/scripts/generate_resume.py --data resume.json --outdir ./ --photo photo.jpg
-# 输出：resume.html / resume.docx / resume.pdf
+SKILL_DIR="/absolute/path/to/resume-builder"
+python3 "$SKILL_DIR/scripts/generate_resume.py" --data resume.json --outdir ./ --photo photo.jpg --format pdf
+# 输出：resume.pdf
 ```
 
 ## 📁 目录结构
@@ -149,18 +149,17 @@ resume-builder/
 ## 🛠 命令行用法
 
 ```
-python3 <SKILL_DIR>/scripts/generate_resume.py \
+python3 "$SKILL_DIR/scripts/generate_resume.py" \
   --data resume.json \
   --outdir ./output \
   [--photo photo.jpg] \
-  [--html-only] [--no-pdf]
+  [--format all|html|docx|pdf]
 ```
 
 - `--data`（必填）：JSON 数据文件路径
 - `--outdir`：输出目录，默认当前目录
 - `--photo`：可选证件照（建议 35×45mm 白底/蓝底 JPG）
-- `--html-only`：只输出 HTML（跳过 DOCX/PDF）
-- `--no-pdf`：输出 HTML + DOCX，不渲染 PDF
+- `--format`：输出 `all`（默认）、`html`、`docx` 或 `pdf`；`pdf` 模式仅保留 PDF。
 
 ## 💡 写作要点（节选自 Style Guide）
 
@@ -171,7 +170,7 @@ python3 <SKILL_DIR>/scripts/generate_resume.py \
 3. **数字维度**：用户规模（DAU/UV）、性能（latency/FCP/success rate）、效率（提效小时/
    接入周期）、质量（准确率/召回率/NPS）、复用（下载量/业务覆盖数）。
 4. **粗体占比 < 30%**：只给核心 scope、范式名、最终数字加粗，不给中间术语加粗。
-5. **目标 2 页**：超出时删内容，不要缩字号。用 `"page_break": true` 控制分页。
+5. **页数由内容决定**：优先 1-2 页；内容不足时保留 1 页，不强制凑页。仅在自然分页不佳时使用 `"page_break": true`。
 6. **不用第一人称**，不用 emoji，不用网络用语。
 
 ## 📄 License

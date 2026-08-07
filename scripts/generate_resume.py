@@ -25,8 +25,10 @@ from html import escape
 from importlib.util import find_spec
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -45,6 +47,7 @@ WHITE = "#ffffff"
 BANNER_BG = "#eff6ff"
 BORDER_BLUE = "#1e40af"
 BOOTSTRAP_ENV = "RESUME_BUILDER_BOOTSTRAPPED"
+SYSTEM_DEPS_ENV = "RESUME_BUILDER_SYSTEM_DEPS_BOOTSTRAPPED"
 PACKAGE_IMPORTS = {
     "python-docx": "docx",
     "weasyprint": "weasyprint",
@@ -67,24 +70,35 @@ def _venv_python(venv_dir: Path) -> Path:
     return venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
-def _required_packages(args: argparse.Namespace) -> list[str]:
-    """Return only the optional packages needed for the requested output formats."""
+def _requested_formats(args: argparse.Namespace) -> set[str]:
+    """Resolve the requested artifacts while retaining the legacy flags."""
+    if args.format != "all":
+        return {args.format}
     if args.html_only:
-        return []
-    packages = ["python-docx"]
-    if not args.no_pdf:
+        return {"html"}
+    if args.no_pdf:
+        return {"html", "docx"}
+    return {"html", "docx", "pdf"}
+
+
+def _required_packages(formats: set[str]) -> list[str]:
+    """Return only the Python packages required by the requested artifacts."""
+    packages = []
+    if "docx" in formats:
+        packages.append("python-docx")
+    if "pdf" in formats:
         packages.append("weasyprint")
     return packages
 
 
-def ensure_runtime_dependencies(args: argparse.Namespace) -> None:
+def ensure_runtime_dependencies(formats: set[str]) -> None:
     """Install missing optional packages in an isolated venv, then re-run the script.
 
     `pip` cannot safely modify Homebrew- or OS-managed Python installations on
     many machines. Keeping the runtime in a per-user cache makes first use
     self-contained and leaves the caller's Python environment untouched.
     """
-    required = _required_packages(args)
+    required = _required_packages(formats)
     missing = [package for package in required if find_spec(PACKAGE_IMPORTS[package]) is None]
     if not missing:
         return
@@ -99,9 +113,9 @@ def ensure_runtime_dependencies(args: argparse.Namespace) -> None:
         if not venv_python.is_file():
             print(f"正在创建 Skill 运行环境：{venv_dir}")
             subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True)
-        print(f"正在安装缺失依赖：{', '.join(missing)}")
+        print(f"正在安装运行所需依赖：{', '.join(required)}")
         subprocess.run(
-            [str(venv_python), "-m", "pip", "install", *missing],
+            [str(venv_python), "-m", "pip", "install", *required],
             check=True,
         )
     except (OSError, subprocess.CalledProcessError) as exc:
@@ -114,6 +128,65 @@ def ensure_runtime_dependencies(args: argparse.Namespace) -> None:
     env[BOOTSTRAP_ENV] = "1"
     command = [str(venv_python), str(Path(__file__).resolve()), *sys.argv[1:]]
     raise SystemExit(subprocess.run(command, env=env).returncode)
+
+
+def _configure_pdf_environment() -> None:
+    """Provide a writable font cache and Homebrew libraries to WeasyPrint."""
+    font_cache = Path(tempfile.gettempdir()) / "resume-builder-fontconfig"
+    font_cache.mkdir(parents=True, exist_ok=True)
+    os.environ["XDG_CACHE_HOME"] = str(font_cache)
+
+    if sys.platform == "darwin":
+        brew = shutil.which("brew")
+        if brew:
+            prefix = subprocess.run(
+                [brew, "--prefix"], capture_output=True, check=False, text=True
+            ).stdout.strip()
+            lib_dir = Path(prefix) / "lib"
+            if lib_dir.is_dir():
+                existing = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+                os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = (
+                    f"{lib_dir}:{existing}" if existing else str(lib_dir)
+                )
+
+
+def _install_macos_pdf_libraries() -> None:
+    """Install the native Pango stack required by WeasyPrint on macOS."""
+    brew = shutil.which("brew")
+    if not brew:
+        raise RuntimeError(
+            "PDF 渲染缺少 Pango/GObject，且未找到 Homebrew。请安装 Homebrew 后重试，"
+            "或在已具备 Pango 的环境中运行。"
+        )
+    print("正在安装 WeasyPrint 所需的 macOS 系统库：pango")
+    try:
+        subprocess.run([brew, "install", "pango"], check=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("无法自动安装 Pango；请确认 Homebrew 可用并允许安装系统依赖。") from exc
+    _configure_pdf_environment()
+
+
+def _restart_after_system_dependency_install() -> None:
+    env = os.environ.copy()
+    env[SYSTEM_DEPS_ENV] = "1"
+    command = [sys.executable, str(Path(__file__).resolve()), *sys.argv[1:]]
+    raise SystemExit(subprocess.run(command, env=env).returncode)
+
+
+def _write_pdf(html_path: Path, pdf_path: Path) -> None:
+    """Render a PDF and recover once from a missing native macOS library."""
+    _configure_pdf_environment()
+    try:
+        from weasyprint import HTML as WPHTML
+        WPHTML(filename=str(html_path), base_url=str(html_path.parent)).write_pdf(str(pdf_path))
+    except OSError as exc:
+        if sys.platform == "darwin" and os.environ.get(SYSTEM_DEPS_ENV) != "1":
+            _install_macos_pdf_libraries()
+            _restart_after_system_dependency_install()
+        raise RuntimeError(
+            "WeasyPrint 无法加载系统图形库。Linux 请安装 Pango/Cairo，Windows 请配置 "
+            "MSYS2 Pango 或使用 WSL；macOS 请确认 Homebrew 的 pango 可用。"
+        ) from exc
 
 # ============================================================
 #                        HTML GENERATION
@@ -625,12 +698,18 @@ def main():
     ap.add_argument("--data", required=True, help="Path to resume JSON file")
     ap.add_argument("--outdir", default=".", help="Output directory (default: cwd)")
     ap.add_argument("--photo", default=None, help="Optional path to photo.jpg")
-    ap.add_argument("--html-only", action="store_true", help="Skip DOCX/PDF")
-    ap.add_argument("--no-pdf", action="store_true", help="Skip PDF (faster for DOCX+HTML)")
+    ap.add_argument("--format", choices=["all", "html", "docx", "pdf"], default="all",
+                    help="Artifact to keep (default: all)")
+    ap.add_argument("--html-only", action="store_true", help="Legacy alias for --format html")
+    ap.add_argument("--no-pdf", action="store_true", help="Legacy mode: generate HTML + DOCX")
     args = ap.parse_args()
+    if args.format != "all" and (args.html_only or args.no_pdf):
+        ap.error("--format cannot be combined with --html-only or --no-pdf")
+
+    formats = _requested_formats(args)
 
     try:
-        ensure_runtime_dependencies(args)
+        ensure_runtime_dependencies(formats)
     except RuntimeError as exc:
         ap.error(str(exc))
 
@@ -640,27 +719,31 @@ def main():
     outdir = Path(args.outdir); outdir.mkdir(parents=True, exist_ok=True)
     photo = args.photo
 
-    html = build_html(data, photo)
-    html_path = outdir / "resume.html"
-    html_path.write_text(html, encoding="utf-8")
-    print(f"HTML → {html_path}")
+    html = build_html(data, photo) if formats & {"html", "pdf"} else ""
 
-    if not args.html_only:
+    if "html" in formats:
+        html_path = outdir / "resume.html"
+        html_path.write_text(html, encoding="utf-8")
+        print(f"HTML → {html_path}")
+
+    if "docx" in formats:
         docx_path = outdir / "resume.docx"
         try:
             build_docx(data, str(docx_path), photo)
             print(f"DOCX → {docx_path}")
-        except ImportError:
-            print("WARN: python-docx not installed, skipping DOCX", file=sys.stderr)
+        except ImportError as exc:
+            ap.error(f"DOCX 依赖不可用：{exc}")
 
-        if not args.no_pdf:
-            pdf_path = outdir / "resume.pdf"
-            try:
-                from weasyprint import HTML as WPHTML
-                WPHTML(filename=str(html_path), base_url=str(outdir)).write_pdf(str(pdf_path))
-                print(f"PDF  → {pdf_path}")
-            except ImportError:
-                print("WARN: weasyprint not installed, skipping PDF", file=sys.stderr)
+    if "pdf" in formats:
+        pdf_path = outdir / "resume.pdf"
+        if "html" in formats:
+            _write_pdf(outdir / "resume.html", pdf_path)
+        else:
+            with tempfile.TemporaryDirectory(prefix="resume-builder-") as temp_dir:
+                temp_html = Path(temp_dir) / "resume.html"
+                temp_html.write_text(html, encoding="utf-8")
+                _write_pdf(temp_html, pdf_path)
+        print(f"PDF  → {pdf_path}")
 
 
 if __name__ == "__main__":
