@@ -38,9 +38,11 @@ npx skills add lugezuishuai/resume-builder-skill -g -y -a codex
 
 ### Python 依赖
 
-```bash
-python3 -m pip install python-docx weasyprint
-```
+无需手动安装 `python-docx` 或 `weasyprint`。首次生成时，脚本会按输出格式检测依赖，缺失则
+自动在用户缓存目录创建隔离虚拟环境、安装依赖并继续生成，不会修改 Homebrew 或系统 Python。
+
+需要 Python 3.8+。使用 `--html-only` 时不安装依赖，`--no-pdf` 只安装 DOCX 依赖，默认会安装
+DOCX 与 PDF 所需的 Python 包。
 
 Linux 最小化环境如 WeasyPrint 报错，补装系统库：
 

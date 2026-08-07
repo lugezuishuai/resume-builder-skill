@@ -20,11 +20,12 @@ description: 专业技术简历生成器，输出固定海军蓝咨询风的 PDF
 
 ## 环境准备
 
-首次运行前确认环境为 **Python 3.8+**，并安装依赖（用户环境没有就装）：
+只需有 **Python 3.8+**。不要要求用户手动安装 `python-docx` 或 `weasyprint`：脚本会根据
+所需输出格式检查依赖；缺失时自动在用户缓存目录创建隔离虚拟环境、安装依赖并继续执行。
+`--html-only` 不安装依赖，`--no-pdf` 只安装 `python-docx`，默认三格式输出会安装两者。
 
-```bash
-python3 -m pip install --user --break-system-packages python-docx weasyprint
-```
+如 PDF 生成报 Pango、Cairo、字体或 DLL 缺失，属于操作系统级依赖。Agent 应根据运行系统自动
+执行对应安装流程；若需要管理员授权，向用户请求授权，不要让用户自行查找安装命令。
 
 中文字体由系统提供（WeasyPrint 会自动 PingFang SC / 微软雅黑 / Noto Sans CJK SC 回退）。
 如 WeasyPrint 启动报错缺少系统库（常见于 Linux 最小化环境），参考
@@ -91,7 +92,8 @@ python3 <SKILL_DIR>/scripts/generate_resume.py --data resume.json --outdir ./ --
 python3 <SKILL_DIR>/scripts/generate_resume.py --data resume.json --outdir ./ --no-pdf
 ```
 
-其中 `<SKILL_DIR>` 是本 Skill 所在目录。脚本会在 `--outdir` 下生成：
+其中 `<SKILL_DIR>` 是本 Skill 所在目录。首次执行会自动完成所需 Python 依赖的安装；脚本会在
+`--outdir` 下生成：
 
 - `resume.html`（单文件 HTML，可浏览器打开打印为 PDF）
 - `resume.docx`（可编辑 Word 文档）
@@ -155,8 +157,10 @@ python3 <SKILL_DIR>/scripts/generate_resume.py --data resume.json --outdir ./ --
 **WeasyPrint 报错缺少 lib 库**（Ubuntu/Debian 常见）：
 ```bash
 sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libffi-dev
-python3 -m pip install --user --break-system-packages weasyprint
 ```
+
+Python 包会由脚本自动安装；仅在系统库缺失时才需要执行上述系统包安装。Windows 原生环境需
+安装 Pango（推荐通过 MSYS2）并设置 DLL 路径；优先建议使用 WSL 走 Linux 流程。
 
 **PDF 里中文字体显示异常（方框/乱码）**：
 - 安装 Noto Sans CJK：`sudo apt-get install fonts-noto-cjk`（Linux）或确认系统有 PingFang SC/微软雅黑。

@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import argparse
 from html import escape
+from importlib.util import find_spec
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -42,6 +44,76 @@ LIGHT = "#6b7280"
 WHITE = "#ffffff"
 BANNER_BG = "#eff6ff"
 BORDER_BLUE = "#1e40af"
+BOOTSTRAP_ENV = "RESUME_BUILDER_BOOTSTRAPPED"
+PACKAGE_IMPORTS = {
+    "python-docx": "docx",
+    "weasyprint": "weasyprint",
+}
+
+
+def _runtime_venv_dir() -> Path:
+    """Return the isolated environment used for this skill's Python packages."""
+    configured = os.environ.get("RESUME_BUILDER_VENV")
+    if configured:
+        return Path(configured).expanduser()
+    if os.name == "nt":
+        cache_root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    else:
+        cache_root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    return cache_root / "resume-builder" / "venv"
+
+
+def _venv_python(venv_dir: Path) -> Path:
+    return venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+def _required_packages(args: argparse.Namespace) -> list[str]:
+    """Return only the optional packages needed for the requested output formats."""
+    if args.html_only:
+        return []
+    packages = ["python-docx"]
+    if not args.no_pdf:
+        packages.append("weasyprint")
+    return packages
+
+
+def ensure_runtime_dependencies(args: argparse.Namespace) -> None:
+    """Install missing optional packages in an isolated venv, then re-run the script.
+
+    `pip` cannot safely modify Homebrew- or OS-managed Python installations on
+    many machines. Keeping the runtime in a per-user cache makes first use
+    self-contained and leaves the caller's Python environment untouched.
+    """
+    required = _required_packages(args)
+    missing = [package for package in required if find_spec(PACKAGE_IMPORTS[package]) is None]
+    if not missing:
+        return
+
+    if os.environ.get(BOOTSTRAP_ENV) == "1":
+        missing_list = ", ".join(missing)
+        raise RuntimeError(f"自动安装后仍缺少依赖：{missing_list}")
+
+    venv_dir = _runtime_venv_dir()
+    venv_python = _venv_python(venv_dir)
+    try:
+        if not venv_python.is_file():
+            print(f"正在创建 Skill 运行环境：{venv_dir}")
+            subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True)
+        print(f"正在安装缺失依赖：{', '.join(missing)}")
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", *missing],
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(
+            "无法自动安装 Python 依赖。请确认网络可用、当前 Python 包含 venv 模块，"
+            "且用户缓存目录可写。"
+        ) from exc
+
+    env = os.environ.copy()
+    env[BOOTSTRAP_ENV] = "1"
+    command = [str(venv_python), str(Path(__file__).resolve()), *sys.argv[1:]]
+    raise SystemExit(subprocess.run(command, env=env).returncode)
 
 # ============================================================
 #                        HTML GENERATION
@@ -556,6 +628,11 @@ def main():
     ap.add_argument("--html-only", action="store_true", help="Skip DOCX/PDF")
     ap.add_argument("--no-pdf", action="store_true", help="Skip PDF (faster for DOCX+HTML)")
     args = ap.parse_args()
+
+    try:
+        ensure_runtime_dependencies(args)
+    except RuntimeError as exc:
+        ap.error(str(exc))
 
     with open(args.data, "r", encoding="utf-8") as f:
         data = json.load(f)
