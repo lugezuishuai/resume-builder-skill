@@ -1,0 +1,51 @@
+{
+  "name": "resume-builder",
+  "version": "1.0.0",
+  "description": "专业中文技术简历生成器，海军蓝咨询风固定模板，一次产出 HTML/DOCX/PDF 三格式 2 页 A4 简历，支持指标加粗、项目 banner、子模块横幅、强制分页等排版能力，适用于互联网/大厂技术岗求职简历制作。",
+  "author": "黄东璐 (Huang Donglu)",
+  "license": "MIT",
+  "tags": [
+    "resume",
+    "cv",
+    "chinese",
+    "tech-resume",
+    "pdf",
+    "docx",
+    "career",
+    "job-search",
+    "productivity"
+  ],
+  "category": "productivity",
+  "skill_file": "SKILL.md",
+  "requires": {
+    "python_packages": [
+      "python-docx",
+      "weasyprint"
+    ],
+    "python_version": "3.8+",
+    "external_resources": [
+      "CJK font (PingFang SC / Microsoft YaHei / Noto Sans CJK SC)"
+    ]
+  },
+  "documentation": {
+    "main": "SKILL.md",
+    "data_schema": "references/data-schema.md",
+    "style_guide": "references/style-guide.md",
+    "example": "examples/resume_data_example.json"
+  },
+  "features": [
+    "Fixed navy-blue consulting-style template (A4, 2 pages)",
+    "Single JSON data source generates HTML, DOCX, and PDF in one run",
+    "Project banners and light-blue sub-section banners for visual hierarchy",
+    "Inline **bold** markers for quantified metrics and key scope",
+    "Optional page-break control per project for precise 2-page layout",
+    "Optional portrait photo support (top-right header)",
+    "Hyperlink support for blog/contact URLs",
+    "Example data and full schema documentation included"
+  ],
+  "outputs": [
+    "resume.html",
+    "resume.docx",
+    "resume.pdf"
+  ]
+}

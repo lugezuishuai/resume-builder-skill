@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyo
+*.skill
+output/
+.DS_Store
