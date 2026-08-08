@@ -3,9 +3,9 @@
 为中文技术岗求职者生成**专业排版简历**的 Agent Skill。海军蓝（navy）咨询风固定模板，
 可按需产出 HTML / DOCX / PDF，页数根据内容自然收束为 1-2 页 A4。
 
-![style](assets/badges/style.svg)
-![format](assets/badges/format.svg)
-![license](assets/badges/license.svg)
+![style](https://img.shields.io/badge/style-navy%20consulting-1e40af.svg)
+![format](https://img.shields.io/badge/format-HTML%20%7C%20DOCX%20%7C%20PDF-44bb00.svg)
+![license](https://img.shields.io/badge/license-MIT-007ec6.svg)
 
 ## ✨ 特点
 
