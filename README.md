@@ -134,17 +134,17 @@ resume-builder/
 
 ## 🎨 视觉规范（固定，勿改）
 
-| 元素 | 规格 |
-|------|------|
-| 页面 | A4，margin 10mm × 12mm |
-| 姓名 | 24pt 加粗 #1e40af，字距 3px |
-| 职位标签 | 9.5pt 白字 #1e40af 背景 |
-| 章节标题 | 12pt 加粗 #1e40af，下划 1.5pt |
-| 公司名 | 11pt 加粗 #111827 |
-| Project banner | #1e40af 背景，10pt 白字加粗 |
-| 子模块 banner | #eff6ff 背景 + 4px 左条，9pt #1e40af 加粗 |
-| 正文 | 9pt / 8.8pt bullet，#1f2937，行距 1.45–1.5 |
-| 加粗 | 700 weight #111827，用于 scope/范式/数字结果 |
+| 元素           | 规格                                         |
+| -------------- | -------------------------------------------- |
+| 页面           | A4，margin 10mm × 12mm                       |
+| 姓名           | 24pt 加粗 #1e40af，字距 3px                  |
+| 职位标签       | 9.5pt 白字 #1e40af 背景                      |
+| 章节标题       | 12pt 加粗 #1e40af，下划 1.5pt                |
+| 公司名         | 11pt 加粗 #111827                            |
+| Project banner | #1e40af 背景，10pt 白字加粗                  |
+| 子模块 banner  | #eff6ff 背景 + 4px 左条，9pt #1e40af 加粗    |
+| 正文           | 9pt / 8.8pt bullet，#1f2937，行距 1.45–1.5   |
+| 加粗           | 700 weight #111827，用于 scope/范式/数字结果 |
 
 ## 🛠 命令行用法
 
@@ -175,7 +175,7 @@ python3 "$SKILL_DIR/scripts/generate_resume.py" \
 
 ## 📄 License
 
-MIT © 2026 黄东璐 (Huang Donglu). 详见 [LICENSE](LICENSE)。
+MIT © 2026 lugezuishuai. 详见 [LICENSE](LICENSE)。
 
 ## 🔗 相关
 
